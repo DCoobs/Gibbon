@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<dict>
+	<key>AdditionalHttpHeaders</key>
+	<array>
+		<string>Authorization: Basic bXVua2k6NmNEZC01TWIxLWVHZjEtZDVZOC03NGUwLWQ4UWY=</string>
+	</array>
+	<key>AppleSoftwareUpdatesOnly</key>
+	<false/>
+	<ClientIdentifier>swan-sab132</ClientIdentifier>
+	<DaysBetweenNotifications>1</DaysBetweenNotifications>
+	<key>InstallAppleSoftwareUpdates</key>
+	<true/>
+	<key>InstalledApplePackagesChecksum</key>
+	<string>22c7a935485928f5f4bfbb246fc78b158209296584cfa02667db0e767d664019</string>
+	<key>LastAppleSoftwareUpdateCheck</key>
+	<date>2015-09-02T19:59:09Z</date>
+	<LastCheckDate>2015-09-03T16:45:00Z</LastCheckDate>
+	<LastCheckResult>0</LastCheckResult>
+	<LogFile>"\Program Files\Gibbon\Logs\ManagedSoftwareUpdate.log</LogFile>
+	<key>LogToSyslog</key>
+	<false/>
+	<key>LoggingLevel</key>
+	<integer>1</integer>
+	<key>ManagedInstallDir</key>
+	<string>/Library/Managed Installs</string>
+	<key>PackageVerificationMode</key>
+	<string>hash</string>
+	<key>PendingUpdateCount</key>
+	<integer>0</integer>
+	<key>SoftwareRepoURL</key>
+	<string>https://munki.admin.illinois.edu/</string>
+	<key>SoftwareUpdateServerURL</key>
+	<string></string>
+	<key>SuppressAutoInstall</key>
+	<false/>
+	<key>SuppressStopButtonOnInstall</key>
+	<false/>
+	<key>SuppressUserNotification</key>
+	<false/>
+	<key>UseClientCertificate</key>
+	<false/>
+</dict>
