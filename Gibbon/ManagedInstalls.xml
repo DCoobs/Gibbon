@@ -8,8 +8,7 @@
 	<false/>
 	<ClientIdentifier>swan-sab132</ClientIdentifier>
 	<DaysBetweenNotifications>1</DaysBetweenNotifications>
-	<key>InstallAppleSoftwareUpdates</key>
-	<true/>
+	<InstallWindowsUpdates>true</InstallWindowsUpdates>
 	<key>InstalledApplePackagesChecksum</key>
 	<string>22c7a935485928f5f4bfbb246fc78b158209296584cfa02667db0e767d664019</string>
 	<key>LastAppleSoftwareUpdateCheck</key>
