@@ -19,8 +19,33 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"Running managedsoftwareupdate"
+
 #Declare gibbonInstallDir variable
 $gibbonInstallDir = $env:SystemDrive + "\Progra~1\Gibbon"
+
+#check if preflight script exists and call it if it does exist. Exit if preflight script encounters an error.
+"Checking if preflight script exists"
+If (Test-Path ($gibbonInstallDir + "\preflight.ps1"))
+    {
+    "Preflight script exists";
+    "Running preflight script";
+    Invoke-Expression ($gibbonInstallDir + "\preflight.ps1");
+        If ($LastExitCode > 0)
+        {
+        Write-Host "Preflight script encountered an error"
+        Exit
+        }
+    }
+Else {'"Preflight script does not exist. If this is in error, please ensure script is in " + $gibbonInstallDir"'}
+
+"Loading ManagedInstalls.XML"
+#Check that ManagedInstalls.XML exists
+If (!(Test-Path ($gibbonInstallDir + "\ManagedInstalls.xml")))
+    {
+    "Could not find ManagedInstalls.XML Exiting..."
+    Exit
+    }
 
 #Load ManagedInstalls.xml file into variable $managedInstallsXML
 [xml]$managedInstallsXML = Get-Content ($gibbonInstallDir + "\ManagedInstalls.xml")
@@ -28,23 +53,36 @@ $gibbonInstallDir = $env:SystemDrive + "\Progra~1\Gibbon"
 #Parse ManagedInstalls.xml and insert necessary data into variables
 $client_Identifier = $managedInstallsXML.dict.ClientIdentifier
 [bool]$installWindowsUpdates = [bool]$managedInstallsXML.dict.InstallWindowsUpdates
-
-#check if preflight script exists and call if it exists
-If (Test-Path ($gibbonInstallDir + "\preflight.ps1"))
-    {
-    Invoke-Expression ($gibbonInstallDir + "\preflight.ps1")
-    }
+$lastWindowsUpdateCheck = $managedInstallsXML.dict.LastWindowsUpdateCheck
+$daysBetweenNotifications = $managedInstallsXML.dict.DaysBetweenNotifications
     
-    Write-Host "$LastExitCode"
-    Write-Host "$installWindowsUpdates"
 
-#if InstallWindowsUpdates is true, check for Windows updates
+#if InstallWindowsUpdates is true, install Windows updates (except language packs)
 If ($installWindowsUpdates = $True)
     {
     #import PowerShell Windows Update modules
     ipmo ($gibbonInstallDir + "\Resources\WindowsUpdatePowerShellModule\PSWindowsUpdate");
-    Get-WUInstall
+    #Uncomment next line for command information
+    #Help Get-WUInstall –full
+    #Get-WUInstall -NotCategory "Language packs" -MicrosoftUpdate -AcceptAll -AutoReboot -Verbose
     }
+
+#check if postflight script exists and call it if it does exist. Exit if postflight script encounters an error.
+"Checking if postflight script exists"
+If (Test-Path ($gibbonInstallDir + "\postflight.ps1"))
+    {
+    "Postflight script exists";
+    "Running postflight script";
+    Invoke-Expression ($gibbonInstallDir + "\postflight.ps1");
+        If ($LastExitCode > 0)
+        {
+        Write-Host "Postflight script encountered an error"
+        Exit
+        }
+    }
+Else {'"Postflight script does not exist. If this is in error, please ensure script is in " + $gibbonInstallDir"'}
+
+
 
 #Misc. Variables
 #$env:computername = current computername
