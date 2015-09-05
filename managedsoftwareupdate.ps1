@@ -37,7 +37,7 @@ If (Test-Path ($gibbonInstallDir + "\preflight.ps1"))
         Exit
         }
     }
-Else {'"Preflight script does not exist. If this is in error, please ensure script is in " + $gibbonInstallDir"'}
+Else {"Preflight script does not exist. If this is in error, please ensure script is in the Gibbon install directory"}
 
 "Loading ManagedInstalls.XML"
 #Check that ManagedInstalls.XML exists
@@ -54,17 +54,21 @@ If (!(Test-Path ($gibbonInstallDir + "\ManagedInstalls.xml")))
 $client_Identifier = $managedInstallsXML.dict.ClientIdentifier
 [bool]$installWindowsUpdates = [bool]$managedInstallsXML.dict.InstallWindowsUpdates
 $lastWindowsUpdateCheck = $managedInstallsXML.dict.LastWindowsUpdateCheck
-$daysBetweenNotifications = $managedInstallsXML.dict.DaysBetweenNotifications
     
 
-#if InstallWindowsUpdates is true, install Windows updates (except language packs)
+#if InstallWindowsUpdates is true, install Windows updates (except language packs) but do not reboot
 If ($installWindowsUpdates = $True)
     {
     #import PowerShell Windows Update modules
     ipmo ($gibbonInstallDir + "\Resources\WindowsUpdatePowerShellModule\PSWindowsUpdate");
     #Uncomment next line for command information
     #Help Get-WUInstall –full
-    #Get-WUInstall -NotCategory "Language packs" -MicrosoftUpdate -AcceptAll -AutoReboot -Verbose
+    #Get-WUInstall -NotCategory "Language packs" -MicrosoftUpdate -AcceptAll -IgnoreReboot -Verbose
+    If ($LastExitCode > 0)
+        {
+        Write-Host "Windows Updates encountered an error"
+        Exit
+        }  
     }
 
 #check if postflight script exists and call it if it does exist. Exit if postflight script encounters an error.
@@ -80,7 +84,10 @@ If (Test-Path ($gibbonInstallDir + "\postflight.ps1"))
         Exit
         }
     }
-Else {'"Postflight script does not exist. If this is in error, please ensure script is in " + $gibbonInstallDir"'}
+Else {"Postflight script does not exist. If this is in error, please ensure script is in the Gibbon install directory"}
+
+#If there is a pending Windows Update reboot, it reboots the computer. 
+Get-WURebootStatus -AutoReboot
 
 
 
