@@ -19,7 +19,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"Running managedsoftwareupdate"
+"Starting...."
+
+#Check that script is being run as administrator; Exit if not.
+    If (!([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(`
+       [Security.Principal.WindowsBuiltInRole] "Administrator"))
+    {
+        Write-Warning "You are not running this script as a system administrator!`nPlease re-run this script as an Administrator!"
+        Break
+    }
 
 #Declare gibbonInstallDir variable
 $gibbonInstallDir = $env:SystemDrive + "\Progra~1\Gibbon"
@@ -33,7 +41,7 @@ If (Test-Path ($gibbonInstallDir + "\preflight.ps1"))
     Invoke-Expression ($gibbonInstallDir + "\preflight.ps1");
         If ($LastExitCode > 0)
         {
-        Write-Host "Preflight script encountered an error"
+        Write-Warning "Preflight script encountered an error"
         Exit
         }
     }
@@ -43,7 +51,7 @@ Else {"Preflight script does not exist. If this is in error, please ensure scrip
 #Check that ManagedInstalls.XML exists
 If (!(Test-Path ($gibbonInstallDir + "\ManagedInstalls.xml")))
     {
-    "Could not find ManagedInstalls.XML Exiting..."
+    Write-Warning "Could not find ManagedInstalls.XML Exiting..."
     Exit
     }
 
@@ -53,23 +61,33 @@ If (!(Test-Path ($gibbonInstallDir + "\ManagedInstalls.xml")))
 #Parse ManagedInstalls.xml and insert necessary data into variables
 $client_Identifier = $managedInstallsXML.dict.ClientIdentifier
 [bool]$installWindowsUpdates = [bool]$managedInstallsXML.dict.InstallWindowsUpdates
-$lastWindowsUpdateCheck = $managedInstallsXML.dict.LastWindowsUpdateCheck
-    
+[DateTime]$lastWindowsUpdateCheck = [DateTime]$managedInstallsXML.dict.LastWindowsUpdateCheck
 
-#if InstallWindowsUpdates is true, install Windows updates (except language packs) but do not reboot
+#if InstallWindowsUpdates is true, install Windows updates (except language packs) but do not reboot.
+#import PowerShell Windows Update modules
+ipmo ($gibbonInstallDir + "\Resources\WindowsUpdatePowerShellModule\PSWindowsUpdate");
 If ($installWindowsUpdates = $True)
     {
-    #import PowerShell Windows Update modules
-    ipmo ($gibbonInstallDir + "\Resources\WindowsUpdatePowerShellModule\PSWindowsUpdate");
-    #Uncomment next line for command information
+    "Checking for available Windows Updates..."
+    #Use command on next line for command information
     #Help Get-WUInstall –full
     #Get-WUInstall -NotCategory "Language packs" -MicrosoftUpdate -AcceptAll -IgnoreReboot -Verbose
     If ($LastExitCode > 0)
         {
-        Write-Host "Windows Updates encountered an error"
+        Write-Warning "Windows Updates encountered an error"
         Exit
+        }
+    ElseIf ($LastExitCode = 0)
+        {
+        #If successful, update LastWindowsUpdateCheck in ManagedInstalls.XML
+        $lastWindowsUpdateCheck = Get-Date
+        $managedInstallsXML.DocumentElement.AppendChild($lastWindowsUpdateCheck)
+        $managedInstallsXML.Save
         }  
     }
+
+
+"Finishing..."
 
 #check if postflight script exists and call it if it does exist. Exit if postflight script encounters an error.
 "Checking if postflight script exists"
@@ -80,23 +98,24 @@ If (Test-Path ($gibbonInstallDir + "\postflight.ps1"))
     Invoke-Expression ($gibbonInstallDir + "\postflight.ps1");
         If ($LastExitCode > 0)
         {
-        Write-Host "Postflight script encountered an error"
+        Write-Warning "Postflight script encountered an error"
         Exit
         }
     }
 Else {"Postflight script does not exist. If this is in error, please ensure script is in the Gibbon install directory"}
 
-#If there is a pending Windows Update reboot, it reboots the computer. 
-Get-WURebootStatus -AutoReboot
-
-
-
-#Misc. Variables
-#$env:computername = current computername
-#$env:systemroot = "C:\windows"  ( or wherever windows was installed )
-#$sysroot = $env:SystemRoot | Foreach{$_ -repalce ":","$"}
-#$path = "\\" + $env:computername + "\" + $sysroot + "\system32\config"
-
-#Two quotations is print command
-#$env:systemroot = c:\windows
-#$env:SystemDrive = c:
+#Check if there is a pending system reboot, if there is, the computer is restarted. 
+$RebootStatus = Get-WURebootStatus
+If ($RebootStatus = "localhost: Reboot is not Required")
+    {
+    "A system reboot is not required"
+    }
+ElseIf ($RebootStatus = "localhost: Reboot is Required")
+    {
+    "A system reboot is required. Restarting computer now..."
+    Get-WURebootStatus -AutoReboot
+    }
+Else
+    {
+    Write-Warning "Encountered an error with Windows update reboot"
+    }
