@@ -4,6 +4,7 @@
 .NOTES 
     Author     : Drew Coobs - coobs1@illinois.edu 
 #>
+##############################################################################
 #
 # Copyright 2015 Drew Coobs.
 #
@@ -18,8 +19,24 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+##############################################################################
 
-"Starting...."
+#Enabling support for script parameters (allows verbose & debug)
+[CmdletBinding()]
+Param()
+
+###########################################################
+###   CONSTANT VARIABLES   ################################
+###########################################################
+
+#Declare gibbonInstallDir variable
+$gibbonInstallDir = $env:SystemDrive + "\Progra~1\Gibbon"
+
+###########################################################
+###   END OF CONSTANT VARIABLES   #########################
+###########################################################
+
+Write-Verbose "Starting...."
 
 #Check that script is being run as administrator; Exit if not.
     If (!([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(`
@@ -29,15 +46,16 @@
         Break
     }
 
-#Declare gibbonInstallDir variable
-$gibbonInstallDir = $env:SystemDrive + "\Progra~1\Gibbon"
+########################
+### PREFLIGHT SCRIPT ###
+######################## 
 
 #check if preflight script exists and call it if it does exist. Exit if preflight script encounters an error.
-"Checking if preflight script exists"
+Write-Verbose "Checking if preflight script exists"
 If (Test-Path ($gibbonInstallDir + "\preflight.ps1"))
     {
-    "Preflight script exists";
-    "Running preflight script";
+    Write-Verbose "Preflight script exists";
+    Write-Verbose "Running preflight script";
     Invoke-Expression ($gibbonInstallDir + "\preflight.ps1");
         If ($LastExitCode > 0)
         {
@@ -45,9 +63,17 @@ If (Test-Path ($gibbonInstallDir + "\preflight.ps1"))
         Exit
         }
     }
-Else {"Preflight script does not exist. If this is in error, please ensure script is in the Gibbon install directory"}
+Else {Write-Verbose "Preflight script does not exist. If this is in error, please ensure script is in the Gibbon install directory"}
 
-"Loading ManagedInstalls.XML"
+###############################
+### END OF PREFLIGHT SCRIPT ###
+###############################
+
+###########################
+### MANAGEDINSTALLS.XML ###
+###########################
+ 
+Write-Verbose "Loading ManagedInstalls.XML"
 #Check that ManagedInstalls.XML exists
 If (!(Test-Path ($gibbonInstallDir + "\ManagedInstalls.xml")))
     {
@@ -61,40 +87,58 @@ If (!(Test-Path ($gibbonInstallDir + "\ManagedInstalls.xml")))
 #Parse ManagedInstalls.xml and insert necessary data into variables
 $client_Identifier = $managedInstallsXML.dict.ClientIdentifier
 [bool]$installWindowsUpdates = [bool]$managedInstallsXML.dict.InstallWindowsUpdates
+[bool]$windowsUpdatesOnly = [bool]$managedInstallsXML.dict.WindowsUpdatesOnly
+[int]$daysBetweenWindowsUpdates = [int]$managedInstallsXML.dict.DaysBetweenWindowsUpdates
 [DateTime]$lastWindowsUpdateCheck = [DateTime]$managedInstallsXML.dict.LastWindowsUpdateCheck
 
-#if InstallWindowsUpdates is true, install Windows updates (except language packs) but do not reboot.
+"$windowsUpdatesOnly"
+
+##################################
+### END OF MANAGEDINSTALLS.XML ###
+##################################
+
+#######################
+### WINDOWS UPDATES ###
+####################### 
+
 #import PowerShell Windows Update modules
 ipmo ($gibbonInstallDir + "\Resources\WindowsUpdatePowerShellModule\PSWindowsUpdate");
-If ($installWindowsUpdates = $True)
+
+#Check if $installWindowsUpdates is true in ManagedInstalls.XML. Skip Windows Updates if False.
+If ($installWindowsUpdates)
     {
-    "Checking for available Windows Updates..."
-    #Use command on next line for command information
-    #Help Get-WUInstall –full
-    #Get-WUInstall -NotCategory "Language packs" -MicrosoftUpdate -AcceptAll -IgnoreReboot -Verbose
-    If ($LastExitCode > 0)
+    #Check if Windows Updates been run in last $daysBetweenWindowsUpdates day(s). If so, skip Windows Updates.
+    $windowsUpdateTimeSpan = (new-timespan -days $daysBetweenWindowsUpdates)
+    If (((Get-Date) - $lastWindowsUpdateCheck) -gt $windowsUpdateTimeSpan)
         {
-        Write-Warning "Windows Updates encountered an error"
-        Exit
+        Write-Verbose "Checking for available Windows Updates..."
+        #Use command on next line for command information
+        #Help Get-WUInstall –full
+        Get-WUInstall -NotCategory "Language packs" -MicrosoftUpdate -AcceptAll -IgnoreReboot -Verbose
+        
+        #Update LastWindowsUpdateCheck in ManagedInstalls.XML
+        $managedInstallsXML.SelectSingleNode("//LastWindowsUpdateCheck").InnerText = (Get-Date)
+        #save changes to ManagedInstalls.XML
+        $managedInstallsXML.Save($gibbonInstallDir + "\ManagedInstalls.xml")
         }
-    ElseIf ($LastExitCode = 0)
-        {
-        #If successful, update LastWindowsUpdateCheck in ManagedInstalls.XML
-        $lastWindowsUpdateCheck = Get-Date
-        $managedInstallsXML.DocumentElement.AppendChild($lastWindowsUpdateCheck)
-        $managedInstallsXML.Save
-        }  
     }
 
+##############################
+### END OF WINDOWS UPDATES ###
+############################## 
 
-"Finishing..."
+Write-Verbose "Finishing..."
+
+#########################
+### POSTFLIGHT SCRIPT ###
+######################### 
 
 #check if postflight script exists and call it if it does exist. Exit if postflight script encounters an error.
-"Checking if postflight script exists"
+Write-Verbose "Checking if postflight script exists"
 If (Test-Path ($gibbonInstallDir + "\postflight.ps1"))
     {
-    "Postflight script exists";
-    "Running postflight script";
+    Write-Verbose "Postflight script exists";
+    Write-Verbose "Running postflight script";
     Invoke-Expression ($gibbonInstallDir + "\postflight.ps1");
         If ($LastExitCode > 0)
         {
@@ -102,20 +146,28 @@ If (Test-Path ($gibbonInstallDir + "\postflight.ps1"))
         Exit
         }
     }
-Else {"Postflight script does not exist. If this is in error, please ensure script is in the Gibbon install directory"}
+Else {Write-Verbose "Postflight script does not exist. If this is in error, please ensure script is in the Gibbon install directory"}
 
+################################
+### END OF POSTFLIGHT SCRIPT ###
+################################ 
+
+############################
+### PENDING REBOOT CHECK ###
+############################
+ 
 #Check if there is a pending system reboot, if there is, the computer is restarted. 
-$RebootStatus = Get-WURebootStatus
-If ($RebootStatus = "localhost: Reboot is not Required")
+[bool]$RebootStatus = Get-WURebootStatus -silent
+If ($RebootStatus)
     {
-    "A system reboot is not required"
-    }
-ElseIf ($RebootStatus = "localhost: Reboot is Required")
-    {
-    "A system reboot is required. Restarting computer now..."
+    Write-Verbose "A system reboot is required. Restarting computer now..."
     Get-WURebootStatus -AutoReboot
     }
 Else
     {
-    Write-Warning "Encountered an error with Windows update reboot"
+    Write-Verbose "A system reboot is not required"
     }
+
+###################################
+### END OF PENDING REBOOT CHECK ###
+################################### 
