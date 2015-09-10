@@ -21,9 +21,12 @@
 # limitations under the License.
 ##############################################################################
 
-#Enabling support for script parameters (allows verbose & debug)
+#Enabling support for script parameters (allows verbose, debug, checkonly, installonly)
 [CmdletBinding()]
-Param()
+Param(
+    [switch]$checkOnly,
+	[switch]$installOnly
+)
 
 ###########################################################
 ###   CONSTANT VARIABLES   ################################
@@ -45,6 +48,53 @@ Write-Verbose "Starting...."
         Write-Warning "You are not running this script as a system administrator!`nPlease re-run this script as an Administrator!"
         Break
     }
+
+
+###########################
+### MANAGEDINSTALLS.XML ###
+###########################
+ 
+Write-Verbose "Loading ManagedInstalls.XML"
+#Check that ManagedInstalls.XML exists
+If (!(Test-Path ($gibbonInstallDir + "\ManagedInstalls.xml")))
+    {
+    Write-Warning "Could not find ManagedInstalls.XML Exiting..."
+    Exit
+    }
+
+#Load ManagedInstalls.xml file into variable $managedInstallsXML
+[xml]$managedInstallsXML = Get-Content ($gibbonInstallDir + "\ManagedInstalls.xml")
+
+#Parse ManagedInstalls.xml and insert necessary data into variables
+$client_Identifier = $managedInstallsXML.dict.ClientIdentifier
+$installWindowsUpdates = $managedInstallsXML.dict.InstallWindowsUpdates
+$windowsUpdatesOnly = $managedInstallsXML.dict.WindowsUpdatesOnly
+[int]$daysBetweenWindowsUpdates = [int]$managedInstallsXML.dict.DaysBetweenWindowsUpdates
+[DateTime]$lastWindowsUpdateCheck = [DateTime]$managedInstallsXML.dict.LastWindowsUpdateCheck
+$logFilePath = $managedInstallsXML.dict.LogFile
+$loggingEnabled = $managedInstallsXML.dict.LoggingEnabled
+
+#convert boolean values in XML from strings to actual boolean
+[bool]$installWindowsUpdates = [System.Convert]::ToBoolean($installWindowsUpdates)
+[bool]$windowsUpdatesOnly = [System.Convert]::ToBoolean($windowsUpdatesOnly)
+[bool]$loggingEnabled = [System.Convert]::ToBoolean($loggingEnabled)
+
+##################################
+### END OF MANAGEDINSTALLS.XML ###
+##################################
+
+###########################################################
+###   LOGGING   ###########################################
+###########################################################
+
+#Create log folder if it doesn't exist.
+New-Item -ItemType Directory -Force -Path $logFilePath | Out-Null
+
+Start-Transcript -path ($logFilePath + "\Gibbon.log") -append
+
+###########################################################
+###   END OF LOGGING   ####################################
+###########################################################
 
 ########################
 ### PREFLIGHT SCRIPT ###
@@ -69,34 +119,6 @@ Else {Write-Verbose "Preflight script does not exist. If this is in error, pleas
 ### END OF PREFLIGHT SCRIPT ###
 ###############################
 
-###########################
-### MANAGEDINSTALLS.XML ###
-###########################
- 
-Write-Verbose "Loading ManagedInstalls.XML"
-#Check that ManagedInstalls.XML exists
-If (!(Test-Path ($gibbonInstallDir + "\ManagedInstalls.xml")))
-    {
-    Write-Warning "Could not find ManagedInstalls.XML Exiting..."
-    Exit
-    }
-
-#Load ManagedInstalls.xml file into variable $managedInstallsXML
-[xml]$managedInstallsXML = Get-Content ($gibbonInstallDir + "\ManagedInstalls.xml")
-
-#Parse ManagedInstalls.xml and insert necessary data into variables
-$client_Identifier = $managedInstallsXML.dict.ClientIdentifier
-[bool]$installWindowsUpdates = [bool]$managedInstallsXML.dict.InstallWindowsUpdates
-[bool]$windowsUpdatesOnly = [bool]$managedInstallsXML.dict.WindowsUpdatesOnly
-[int]$daysBetweenWindowsUpdates = [int]$managedInstallsXML.dict.DaysBetweenWindowsUpdates
-[DateTime]$lastWindowsUpdateCheck = [DateTime]$managedInstallsXML.dict.LastWindowsUpdateCheck
-
-"$windowsUpdatesOnly"
-
-##################################
-### END OF MANAGEDINSTALLS.XML ###
-##################################
-
 #######################
 ### WINDOWS UPDATES ###
 ####################### 
@@ -105,7 +127,7 @@ $client_Identifier = $managedInstallsXML.dict.ClientIdentifier
 ipmo ($gibbonInstallDir + "\Resources\WindowsUpdatePowerShellModule\PSWindowsUpdate");
 
 #Check if $installWindowsUpdates is true in ManagedInstalls.XML. Skip Windows Updates if False.
-If ($installWindowsUpdates)
+If ($installWindowsUpdates -or $windowsUpdatesOnly)
     {
     #Check if Windows Updates been run in last $daysBetweenWindowsUpdates day(s). If so, skip Windows Updates.
     $windowsUpdateTimeSpan = (new-timespan -days $daysBetweenWindowsUpdates)
@@ -114,12 +136,20 @@ If ($installWindowsUpdates)
         Write-Verbose "Checking for available Windows Updates..."
         #Use command on next line for command information
         #Help Get-WUInstall –full
-        Get-WUInstall -NotCategory "Language packs" -MicrosoftUpdate -AcceptAll -IgnoreReboot -Verbose
-        
-        #Update LastWindowsUpdateCheck in ManagedInstalls.XML
-        $managedInstallsXML.SelectSingleNode("//LastWindowsUpdateCheck").InnerText = (Get-Date)
-        #save changes to ManagedInstalls.XML
-        $managedInstallsXML.Save($gibbonInstallDir + "\ManagedInstalls.xml")
+        #if checkonly is enabled, only download updates, otherwise, install Windows Updates (except for Language Packs)
+        If ($checkOnly)
+            {
+            Get-WUInstall -NotCategory "Language packs" -MicrosoftUpdate -DownloadOnly -AcceptAll -IgnoreReboot -Verbose
+            }
+        Else
+            {
+            Get-WUInstall -NotCategory "Language packs" -MicrosoftUpdate -AcceptAll -IgnoreReboot -Verbose
+            
+            #Update LastWindowsUpdateCheck in ManagedInstalls.XML
+            $managedInstallsXML.SelectSingleNode("//LastWindowsUpdateCheck").InnerText = (Get-Date)
+            #save changes to ManagedInstalls.XML
+            $managedInstallsXML.Save($gibbonInstallDir + "\ManagedInstalls.xml")
+            }
         }
     }
 
