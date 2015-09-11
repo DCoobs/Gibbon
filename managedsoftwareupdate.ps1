@@ -21,7 +21,7 @@
 # limitations under the License.
 ##############################################################################
 
-#Enabling support for script parameters (allows verbose, debug, checkonly, installonly)
+#Enabling script parameters (allows verbose, debug, checkonly, installonly)
 [CmdletBinding()]
 Param(
     [switch]$checkOnly,
@@ -29,11 +29,32 @@ Param(
 )
 
 ###########################################################
+###   NETWORK CONNECTION TEST   ###########################
+########################################################### 
+
+$networkUp = (test-netconnection -InformationLevel Quiet)
+
+If ($networkUp)
+    {
+    Write-Verbose "Network connection validated"
+    }
+Else
+    {
+    Write-Verbose "Could not validate network connection. Exiting..."
+    Exit
+    }
+
+###########################################################
+###   END OF NETWORK CONNECTION TEST   ####################
+########################################################### 
+
+###########################################################
 ###   CONSTANT VARIABLES   ################################
 ###########################################################
 
 #Declare gibbonInstallDir variable
 $gibbonInstallDir = $env:SystemDrive + "\Progra~1\Gibbon"
+$gibbonManagedInstallsXMLPath = (Join-Path $gibbonInstallDir ManagedInstalls.xml)
 
 ###########################################################
 ###   END OF CONSTANT VARIABLES   #########################
@@ -50,20 +71,20 @@ Write-Verbose "Starting...."
     }
 
 
-###########################
-### MANAGEDINSTALLS.XML ###
-###########################
+################################################################################################
+### MANAGEDINSTALLS.XML ########################################################################
+################################################################################################
  
 Write-Verbose "Loading ManagedInstalls.XML"
 #Check that ManagedInstalls.XML exists
-If (!(Test-Path ($gibbonInstallDir + "\ManagedInstalls.xml")))
+If (!(Test-Path ($gibbonManagedInstallsXMLPath)))
     {
     Write-Warning "Could not find ManagedInstalls.XML Exiting..."
     Exit
     }
 
 #Load ManagedInstalls.xml file into variable $managedInstallsXML
-[xml]$managedInstallsXML = Get-Content ($gibbonInstallDir + "\ManagedInstalls.xml")
+[xml]$managedInstallsXML = Get-Content ($gibbonManagedInstallsXMLPath)
 
 #Parse ManagedInstalls.xml and insert necessary data into variables
 $client_Identifier = $managedInstallsXML.dict.ClientIdentifier
@@ -73,15 +94,16 @@ $windowsUpdatesOnly = $managedInstallsXML.dict.WindowsUpdatesOnly
 [DateTime]$lastWindowsUpdateCheck = [DateTime]$managedInstallsXML.dict.LastWindowsUpdateCheck
 $logFilePath = $managedInstallsXML.dict.LogFile
 $loggingEnabled = $managedInstallsXML.dict.LoggingEnabled
+$softwareRepoURL = $managedInstallsXML.dict.SoftwareRepoURL
 
 #convert boolean values in XML from strings to actual boolean
 [bool]$installWindowsUpdates = [System.Convert]::ToBoolean($installWindowsUpdates)
 [bool]$windowsUpdatesOnly = [System.Convert]::ToBoolean($windowsUpdatesOnly)
 [bool]$loggingEnabled = [System.Convert]::ToBoolean($loggingEnabled)
 
-##################################
-### END OF MANAGEDINSTALLS.XML ###
-##################################
+################################################################################################
+### END OF MANAGEDINSTALLS.XML #################################################################
+################################################################################################
 
 ###########################################################
 ###   LOGGING   ###########################################
@@ -90,23 +112,23 @@ $loggingEnabled = $managedInstallsXML.dict.LoggingEnabled
 #Create log folder if it doesn't exist.
 New-Item -ItemType Directory -Force -Path $logFilePath | Out-Null
 
-Start-Transcript -path ($logFilePath + "\Gibbon.log") -append
+Start-Transcript -path (Join-Path $logFilePath -ChildPath Gibbon.log) -Append
 
 ###########################################################
 ###   END OF LOGGING   ####################################
 ###########################################################
 
-########################
-### PREFLIGHT SCRIPT ###
-######################## 
+############################################################################################
+### PREFLIGHT SCRIPT #######################################################################
+######################## ###################################################################
 
 #check if preflight script exists and call it if it does exist. Exit if preflight script encounters an error.
 Write-Verbose "Checking if preflight script exists"
-If (Test-Path ($gibbonInstallDir + "\preflight.ps1"))
+If (Test-Path (Join-Path $gibbonInstallDir -ChildPath preflight.ps1))
     {
     Write-Verbose "Preflight script exists";
     Write-Verbose "Running preflight script";
-    Invoke-Expression ($gibbonInstallDir + "\preflight.ps1");
+    Invoke-Expression (Join-Path $gibbonInstallDir -ChildPath \preflight.ps1);
         If ($LastExitCode > 0)
         {
         Write-Warning "Preflight script encountered an error"
@@ -115,16 +137,65 @@ If (Test-Path ($gibbonInstallDir + "\preflight.ps1"))
     }
 Else {Write-Verbose "Preflight script does not exist. If this is in error, please ensure script is in the Gibbon install directory"}
 
-###############################
-### END OF PREFLIGHT SCRIPT ###
-###############################
+############################################################################################
+### END OF PREFLIGHT SCRIPT ################################################################
+############################################################################################
 
-#######################
-### WINDOWS UPDATES ###
-####################### 
+#########################################################################################################################################################################
+### OBTAIN INITIAL MANIFEST #############################################################################################################################################
+#########################################################################################################################################################################
+
+#import BitsTransfer module
+IPMO BitsTransfer
+
+If (-Not(($windowsUpdatesOnly)))
+    {
+    Write-Host "Getting manifest $client_Identifier"
+    
+    #Download manifest matching client_identifier in ManagedInstalls.XML. If unable to find it on server, attempt to download site-default manifest.
+    Try
+        {
+        Start-BitsTransfer -Source ($softwareRepoURL + "/manifests/" + $client_Identifier + ".xml") -Destination ($gibbonInstallDir + "\GibbonInstalls\manifest\" + $client_Identifier + ".xml") -TransferType Download -ErrorAction Stop
+        Write-Host "Using manifest $client_Identifier"
+        }
+    Catch
+        {
+        Write-Host "Manifest $client_Identifier not found. Attempting site-default manifest instead..."
+        $noClientIdentifier = $True
+        }
+    If ($noClientIdentifier)
+        {
+        Try
+            {
+            Start-BitsTransfer -Source ($softwareRepoURL + "/manifests/site-default.xml") -Destination ($gibbonInstallDir + "\GibbonInstalls\manifest\site-default.xml") -TransferType Download -ErrorAction Stop
+            Write-Host "Using manifest site-default"
+            }
+        Catch
+            {
+            Write-Host "Unable to locate $client_Identifier or site-default manifests. Skipping Gibbon installs..."
+            $haveManifest = $False
+            }
+        }
+    }
+
+#########################################################################################################################################################################
+### END OF OBTAIN INITIAL MANIFEST ######################################################################################################################################
+#########################################################################################################################################################################
+
+########################################
+### READ MANIFESTS #####################
+########################################
+
+########################################
+### END OF READ MANIFESTS ##############
+########################################
+
+###########################################################################################
+### WINDOWS UPDATES #######################################################################
+###########################################################################################
 
 #import PowerShell Windows Update modules
-ipmo ($gibbonInstallDir + "\Resources\WindowsUpdatePowerShellModule\PSWindowsUpdate");
+IPMO (Join-Path $gibbonInstallDir -ChildPath Resources\WindowsUpdatePowerShellModule\PSWindowsUpdate)
 
 #Check if $installWindowsUpdates is true in ManagedInstalls.XML. Skip Windows Updates if False.
 If ($installWindowsUpdates -or $windowsUpdatesOnly)
@@ -153,23 +224,23 @@ If ($installWindowsUpdates -or $windowsUpdatesOnly)
         }
     }
 
-##############################
-### END OF WINDOWS UPDATES ###
-############################## 
+###########################################################################################
+### END OF WINDOWS UPDATES ################################################################
+###########################################################################################
 
 Write-Verbose "Finishing..."
 
-#########################
-### POSTFLIGHT SCRIPT ###
-######################### 
+##############################################################################################
+### POSTFLIGHT SCRIPT ########################################################################
+######################### ####################################################################
 
 #check if postflight script exists and call it if it does exist. Exit if postflight script encounters an error.
 Write-Verbose "Checking if postflight script exists"
-If (Test-Path ($gibbonInstallDir + "\postflight.ps1"))
+If (Test-Path (Join-Path $gibbonInstallDir -ChildPath postflight.ps1))
     {
     Write-Verbose "Postflight script exists";
     Write-Verbose "Running postflight script";
-    Invoke-Expression ($gibbonInstallDir + "\postflight.ps1");
+    Invoke-Expression (Join-Path $gibbonInstallDir -ChildPath postflight.ps1);
         If ($LastExitCode > 0)
         {
         Write-Warning "Postflight script encountered an error"
@@ -178,13 +249,13 @@ If (Test-Path ($gibbonInstallDir + "\postflight.ps1"))
     }
 Else {Write-Verbose "Postflight script does not exist. If this is in error, please ensure script is in the Gibbon install directory"}
 
-################################
-### END OF POSTFLIGHT SCRIPT ###
-################################ 
+##############################################################################################
+### END OF POSTFLIGHT SCRIPT #################################################################
+##############################################################################################
 
-############################
-### PENDING REBOOT CHECK ###
-############################
+################################################################################################
+### PENDING REBOOT CHECK #######################################################################
+################################################################################################
  
 #Check if there is a pending system reboot, if there is, the computer is restarted. 
 [bool]$RebootStatus = Get-WURebootStatus -silent
@@ -198,6 +269,6 @@ Else
     Write-Verbose "A system reboot is not required"
     }
 
-###################################
-### END OF PENDING REBOOT CHECK ###
-################################### 
+################################################################################################
+### END OF PENDING REBOOT CHECK ################################################################
+################################### ############################################################
