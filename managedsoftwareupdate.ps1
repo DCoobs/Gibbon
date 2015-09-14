@@ -32,7 +32,7 @@ Param(
 ###   NETWORK CONNECTION TEST   ###########################
 ########################################################### 
 
-$networkUp = (test-netconnection -InformationLevel Quiet)
+$networkUp = (Test-NetConnection -InformationLevel Quiet)
 
 If ($networkUp)
     {
@@ -52,9 +52,14 @@ Else
 ###   CONSTANT VARIABLES   ################################
 ###########################################################
 
-#Declare gibbonInstallDir variable
+#Declare Gibbon install directory variable
 $gibbonInstallDir = $env:SystemDrive + "\Progra~1\Gibbon"
+
+#Declare path of ManagedInstalls.XML
 $gibbonManagedInstallsXMLPath = (Join-Path $gibbonInstallDir ManagedInstalls.xml)
+
+#Declare path of manifest
+
 
 ###########################################################
 ###   END OF CONSTANT VARIABLES   #########################
@@ -156,23 +161,26 @@ If (-Not(($windowsUpdatesOnly)))
     Try
         {
         Start-BitsTransfer -Source ($softwareRepoURL + "/manifests/" + $client_Identifier + ".xml") -Destination ($gibbonInstallDir + "\GibbonInstalls\manifest\" + $client_Identifier + ".xml") -TransferType Download -ErrorAction Stop
-        Write-Host "Using manifest $client_Identifier"
+        Write-Verbose "Using manifest $client_Identifier"
+        $initialManifest = $client_Identifier
         }
     Catch
         {
-        Write-Host "Manifest $client_Identifier not found. Attempting site-default manifest instead..."
+        Write-Verbose "Manifest $client_Identifier not found. Attempting site-default manifest instead..."
         $noClientIdentifier = $True
         }
+    
     If ($noClientIdentifier)
         {
         Try
             {
             Start-BitsTransfer -Source ($softwareRepoURL + "/manifests/site-default.xml") -Destination ($gibbonInstallDir + "\GibbonInstalls\manifest\site-default.xml") -TransferType Download -ErrorAction Stop
-            Write-Host "Using manifest site-default"
+            Write-Verbose "Using manifest site-default"
+            $initialManifest = "site-default"
             }
         Catch
             {
-            Write-Host "Unable to locate $client_Identifier or site-default manifests. Skipping Gibbon installs..."
+            Write-Verbose "Unable to locate $client_Identifier or site-default manifests. Skipping Gibbon installs..."
             $haveManifest = $False
             }
         }
@@ -182,13 +190,41 @@ If (-Not(($windowsUpdatesOnly)))
 ### END OF OBTAIN INITIAL MANIFEST ######################################################################################################################################
 #########################################################################################################################################################################
 
-########################################
-### READ MANIFESTS #####################
-########################################
+#################################################
+### OBTAIN NESTED MANIFESTS #####################
+#################################################
 
-########################################
-### END OF READ MANIFESTS ##############
-########################################
+#################################################
+### END OF OBTAIN NESTED MANIFESTS ##############
+#################################################
+
+##################################################################################################################
+### OBTAIN LIST OF GIBBON SOFTWARE INSTALLS ######################################################################
+##################################################################################################################
+
+If (-Not(($windowsUpdatesOnly)))
+    {
+
+#Load $manifest.xml file into variable $manifestXML
+[xml]$initialManifestXML = Get-Content ($gibbonInstallDir + "\GibbonInstalls\manifest\" + $initialManifest + ".xml")
+
+#load list of Gibbon software installs from initial manifest
+[array]$gibbonSoftware = $initialManifestXML.dict.software.program
+
+#create variable for each software in array
+for($i=0; $i -lt $gibbonSoftware.count; $i++)
+{
+    New-Variable -Name "gibbonSoftware$i" -Value $gibbonSoftware[$i]
+}
+
+# get a list of gibbonSoftware variables
+Get-Variable gibbonSoftwar*
+
+    }
+
+##################################################################################################################
+### END OF OBTAIN LIST OF GIBBON SOFTWARE INSTALLS ###############################################################
+##################################################################################################################
 
 ###########################################################################################
 ### WINDOWS UPDATES #######################################################################
