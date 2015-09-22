@@ -155,7 +155,7 @@ IPMO BitsTransfer
 
 If (-Not(($windowsUpdatesOnly)))
     {
-    Write-Host "Getting manifest $client_Identifier"
+    Write-Verbose "Getting manifest $client_Identifier"
     
     #Download manifest matching client_identifier in ManagedInstalls.XML. If unable to find it on server, attempt to download site-default manifest.
     Try
@@ -190,13 +190,70 @@ If (-Not(($windowsUpdatesOnly)))
 ### END OF OBTAIN INITIAL MANIFEST ######################################################################################################################################
 #########################################################################################################################################################################
 
-#################################################
-### OBTAIN NESTED MANIFESTS #####################
-#################################################
+#######################################################################################################################
+### LOAD INITIAL MANIFEST #############################################################################################
+#######################################################################################################################
 
-#################################################
-### END OF OBTAIN NESTED MANIFESTS ##############
-#################################################
+If (-Not(($windowsUpdatesOnly)))
+    {
+
+#Load $manifest.xml file into variable $manifestXML
+[xml]$initialManifestXML = (Get-Content ($gibbonInstallDir + "\GibbonInstalls\manifest\" + $initialManifest + ".xml"))
+    }
+#######################################################################################################################
+### END OF LOAD INITIAL MANIFEST ######################################################################################
+#######################################################################################################################
+
+#####################################################################
+### OBTAIN LIST OF NESTED MANIFESTS #################################
+#####################################################################
+
+If (-Not(($windowsUpdatesOnly)))
+    {
+#load list of Gibbon software installs from initial manifest into nestedManifest array
+$nestedManifestArray = $initialManifestXML.dict.NestedManifest.manifest
+
+#create variable for each software in array
+<#for($j=0; $j -lt $nestedManifest.count; $j++)
+{
+    New-Variable -Name "nestedManifest$j" -Value $nestedManifest[$j]
+}
+
+# get a list of gibbonSoftware variables
+Get-Variable nestedManifest*#>
+
+    }
+
+#####################################################################
+### END OF OBTAIN LIST OF NESTED MANIFESTS ##########################
+#####################################################################
+
+########################################################
+### OBTAIN NESTED MANIFESTS ############################
+########################################################
+
+If (-Not(($windowsUpdatesOnly)))
+    {
+    foreach ($nestedManifest in $nestedManifestArray)
+        {      
+        Write-Verbose "Getting manifest $nestedManifest"
+    
+        #Attempt to download manifest matching nested manifest.
+        Try
+            {
+            Start-BitsTransfer -Source ($softwareRepoURL + "/manifests/" + $nestedManifest + ".xml") -Destination ($gibbonInstallDir + "\GibbonInstalls\manifest\" + $nestedManifest + ".xml") -TransferType Download -ErrorAction Stop
+            Write-Verbose "Using manifest $nestedManifest"
+            }
+        Catch
+            {
+            Write-Verbose "Manifest $nestedManifest not found."
+            }
+        }
+    }
+
+########################################################
+### END OF OBTAIN NESTED MANIFESTS #####################
+########################################################
 
 ##################################################################################################################
 ### OBTAIN LIST OF GIBBON SOFTWARE INSTALLS ######################################################################
@@ -204,21 +261,17 @@ If (-Not(($windowsUpdatesOnly)))
 
 If (-Not(($windowsUpdatesOnly)))
     {
-
-#Load $manifest.xml file into variable $manifestXML
-[xml]$initialManifestXML = Get-Content ($gibbonInstallDir + "\GibbonInstalls\manifest\" + $initialManifest + ".xml")
-
 #load list of Gibbon software installs from initial manifest
-[array]$gibbonSoftware = $initialManifestXML.dict.software.program
+$gibbonSoftware = $initialManifestXML.dict.software.program
 
-#create variable for each software in array
+<#create variable for each software in array
 for($i=0; $i -lt $gibbonSoftware.count; $i++)
 {
     New-Variable -Name "gibbonSoftware$i" -Value $gibbonSoftware[$i]
 }
 
 # get a list of gibbonSoftware variables
-Get-Variable gibbonSoftwar*
+Get-Variable gibbonSoftware*#>
 
     }
 
