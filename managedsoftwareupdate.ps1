@@ -52,11 +52,11 @@ Else
 ###   CONSTANT VARIABLES   ################################
 ###########################################################
 
-#Declare Gibbon install directory variable
-$gibbonInstallDir = $env:SystemDrive + "\Progra~1\Gibbon"
+#Declare Gibbun install directory variable
+$gibbunInstallDir = $env:SystemDrive + "\Progra~1\Gibbun"
 
 #Declare path of ManagedInstalls.XML
-$gibbonManagedInstallsXMLPath = (Join-Path $gibbonInstallDir ManagedInstalls.xml)
+$gibbunManagedInstallsXMLPath = (Join-Path $gibbunInstallDir ManagedInstalls.xml)
 
 #Declare path of manifest
 
@@ -89,14 +89,14 @@ Write-Verbose "Starting...."
  
 Write-Verbose "Loading ManagedInstalls.XML"
 #Check that ManagedInstalls.XML exists
-If (!(Test-Path ($gibbonManagedInstallsXMLPath)))
+If (!(Test-Path ($gibbunManagedInstallsXMLPath)))
     {
     Write-Warning "Could not find ManagedInstalls.XML Exiting..."
     Exit
     }
 
 #Load ManagedInstalls.xml file into variable $managedInstallsXML
-[xml]$managedInstallsXML = Get-Content ($gibbonManagedInstallsXMLPath)
+[xml]$managedInstallsXML = Get-Content ($gibbunManagedInstallsXMLPath)
 
 #Parse ManagedInstalls.xml and insert necessary data into variables
 $client_Identifier = $managedInstallsXML.dict.ClientIdentifier
@@ -121,20 +121,20 @@ $softwareRepoURL = $managedInstallsXML.dict.SoftwareRepoURL
 ### DIRECTORY CHECK ###############################################
 ######################## ##########################################
 
-#Create GibbonInstalls folder if it doesn't exist.
+#Create GibbunInstalls folder if it doesn't exist.
 New-Item -ItemType Directory -Force -Path $logFilePath | Out-Null
 
 #Create log folder if it doesn't exist.
-New-Item -ItemType Directory -Force -Path (Join-Path $gibbonInstallDir GibbonInstalls) | Out-Null
+New-Item -ItemType Directory -Force -Path (Join-Path $gibbunInstallDir GibbunInstalls) | Out-Null
 
 #Create Manifests folder if it doesn't exist.
-New-Item -ItemType Directory -Force -Path (Join-Path $gibbonInstallDir GibbonInstalls\Manifests) | Out-Null
+New-Item -ItemType Directory -Force -Path (Join-Path $gibbunInstallDir GibbunInstalls\Manifests) | Out-Null
 
 #Create Downloads folder if it doesn't exist.
-New-Item -ItemType Directory -Force -Path (Join-Path $gibbonInstallDir GibbonInstalls\Downloads) | Out-Null
+New-Item -ItemType Directory -Force -Path (Join-Path $gibbunInstallDir GibbunInstalls\Downloads) | Out-Null
 
 #Create Downloads folder if it doesn't exist.
-New-Item -ItemType Directory -Force -Path (Join-Path $gibbonInstallDir GibbonInstalls\Catalogs) | Out-Null
+New-Item -ItemType Directory -Force -Path (Join-Path $gibbunInstallDir GibbunInstalls\Catalogs) | Out-Null
 
 ###################################################################
 ### END OF DIRECTORY CHECK ########################################
@@ -144,7 +144,7 @@ New-Item -ItemType Directory -Force -Path (Join-Path $gibbonInstallDir GibbonIns
 ###   LOGGING   ###########################################
 ###########################################################
 
-Start-Transcript -path (Join-Path $logFilePath -ChildPath Gibbon.log) -Append
+Start-Transcript -path (Join-Path $logFilePath -ChildPath Gibbun.log) -Append
 
 ###########################################################
 ###   END OF LOGGING   ####################################
@@ -156,18 +156,18 @@ Start-Transcript -path (Join-Path $logFilePath -ChildPath Gibbon.log) -Append
 
 #check if preflight script exists and call it if it does exist. Exit if preflight script encounters an error.
 Write-Verbose "Checking if preflight script exists"
-If (Test-Path (Join-Path $gibbonInstallDir -ChildPath preflight.ps1))
+If (Test-Path (Join-Path $gibbunInstallDir -ChildPath preflight.ps1))
     {
     Write-Verbose "Preflight script exists";
     Write-Verbose "Running preflight script";
-    Invoke-Expression (Join-Path $gibbonInstallDir -ChildPath \preflight.ps1);
+    Invoke-Expression (Join-Path $gibbunInstallDir -ChildPath \preflight.ps1);
         If ($LastExitCode > 0)
         {
         Write-Warning "Preflight script encountered an error"
         Exit
         }
     }
-Else {Write-Verbose "Preflight script does not exist. If this is in error, please ensure script is in the Gibbon install directory"}
+Else {Write-Verbose "Preflight script does not exist. If this is in error, please ensure script is in the Gibbun install directory"}
 
 ############################################################################################
 ### END OF PREFLIGHT SCRIPT ################################################################
@@ -187,7 +187,7 @@ If (-Not(($windowsUpdatesOnly)))
     #Download manifest matching client_identifier in ManagedInstalls.XML. If unable to find it on server, attempt to download site-default manifest.
     Try
         {
-        Start-BitsTransfer -Source ($softwareRepoURL + "/manifests/" + $client_Identifier + ".xml") -Destination ($gibbonInstallDir + "\GibbonInstalls\Manifests\" + $client_Identifier + ".xml") -TransferType Download -ErrorAction Stop
+        Start-BitsTransfer -Source ($softwareRepoURL + "/manifests/" + $client_Identifier + ".xml") -Destination ($gibbunInstallDir + "\GibbunInstalls\Manifests\" + $client_Identifier + ".xml") -TransferType Download -ErrorAction Stop
         Write-Verbose "Using manifest $client_Identifier"
         $initialManifest = $client_Identifier
         }
@@ -201,13 +201,13 @@ If (-Not(($windowsUpdatesOnly)))
         {
         Try
             {
-            Start-BitsTransfer -Source ($softwareRepoURL + "/manifests/site-default.xml") -Destination ($gibbonInstallDir + "\GibbonInstalls\Manifests\site-default.xml") -TransferType Download -ErrorAction Stop
+            Start-BitsTransfer -Source ($softwareRepoURL + "/manifests/site-default.xml") -Destination ($gibbunInstallDir + "\GibbunInstalls\Manifests\site-default.xml") -TransferType Download -ErrorAction Stop
             Write-Verbose "Using manifest site-default"
             $initialManifest = "site-default"
             }
         Catch
             {
-            Write-Verbose "Unable to locate $client_Identifier or site-default manifests. Skipping Gibbon installs..."
+            Write-Verbose "Unable to locate $client_Identifier or site-default manifests. Skipping Gibbun installs..."
             $haveManifest = $False
             }
         }
@@ -224,7 +224,7 @@ If (-Not(($windowsUpdatesOnly)))
 If (-Not(($windowsUpdatesOnly)))
     {
     #Load $manifest.xml file into variable $manifestXML
-    [xml]$initialManifestXML = (Get-Content ($gibbonInstallDir + "\GibbonInstalls\Manifests\" + $initialManifest + ".xml"))
+    [xml]$initialManifestXML = (Get-Content ($gibbunInstallDir + "\GibbunInstalls\Manifests\" + $initialManifest + ".xml"))
     }
 ###########################################################################################################################
 ### END OF LOAD INITIAL MANIFEST ##########################################################################################
@@ -236,7 +236,7 @@ If (-Not(($windowsUpdatesOnly)))
 
 If (-Not(($windowsUpdatesOnly)))
     {
-    #load list of Gibbon software installs from initial manifest into nestedManifestArray
+    #load list of Gibbun software installs from initial manifest into nestedManifestArray
     $nestedManifestArray = $initialManifestXML.dict.NestedManifest.manifest
 
     #uncomment next line to display list of nested manifests held in $nestedManifestArray
@@ -260,7 +260,7 @@ If (-Not(($windowsUpdatesOnly)))
         #Attempt to download manifest matching nested manifest.
         Try
             {
-            Start-BitsTransfer -Source ($softwareRepoURL + "/manifests/" + $nestedManifest + ".xml") -Destination ($gibbonInstallDir + "\GibbonInstalls\Manifests\" + $nestedManifest + ".xml") -TransferType Download -ErrorAction Stop
+            Start-BitsTransfer -Source ($softwareRepoURL + "/manifests/" + $nestedManifest + ".xml") -Destination ($gibbunInstallDir + "\GibbunInstalls\Manifests\" + $nestedManifest + ".xml") -TransferType Download -ErrorAction Stop
             Write-Verbose "Using manifest $nestedManifest"
             }
         Catch
@@ -275,34 +275,34 @@ If (-Not(($windowsUpdatesOnly)))
 ##########################################################################################################################################################################################################################################
 
 ##################################################################################################################
-### OBTAIN LIST OF GIBBON SOFTWARE INSTALLS ######################################################################
+### OBTAIN LIST OF Gibbun SOFTWARE INSTALLS ######################################################################
 ##################################################################################################################
 
 If (-Not(($windowsUpdatesOnly)))
     {
-    #load list of Gibbon software installs from initial manifest into variable gibbonSoftware
-    [array]$gibbonSoftware = $initialManifestXML.dict.software.program
+    #load list of Gibbun software installs from initial manifest into variable gibbunSoftware
+    [array]$gibbunSoftware = $initialManifestXML.dict.software.program
 
-    #load nested manifests XML files into XML variable and then add nested installs into gibbonSoftware variable
+    #load nested manifests XML files into XML variable and then add nested installs into gibbunSoftware variable
     foreach ($nestedManifest in $nestedManifestArray)
         {
         #load manifest into XML
-        [xml]$nestedManifestXML = (Get-Content ($gibbonInstallDir + "\GibbonInstalls\Manifests\" + $nestedManifest + ".xml"))
+        [xml]$nestedManifestXML = (Get-Content ($gibbunInstallDir + "\GibbunInstalls\Manifests\" + $nestedManifest + ".xml"))
 
         #add install items from nested manifests to
-        $gibbonSoftware += $nestedManifestXML.dict.software.program
+        $gibbunSoftware += $nestedManifestXML.dict.software.program
         }
 
-    #remove any duplicate installs from gibbonSoftware variable
-    $gibbonSoftware = $gibbonsoftware | select -uniq
+    #remove any duplicate installs from gibbunSoftware variable
+    $gibbunSoftware = $gibbunsoftware | select -uniq
 
-    #uncomment next line to display list of software held in $gibbonSoftware
-    #Get-Variable gibbonSoftware
+    #uncomment next line to display list of software held in $gibbunSoftware
+    #Get-Variable gibbunSoftware
 
     }
 
 ##################################################################################################################
-### END OF OBTAIN LIST OF GIBBON SOFTWARE INSTALLS ###############################################################
+### END OF OBTAIN LIST OF Gibbun SOFTWARE INSTALLS ###############################################################
 ##################################################################################################################
 
 ###########################################################################################
@@ -344,7 +344,7 @@ If (-Not(($windowsUpdatesOnly)))
         #Attempt to download catalog
         Try
             {
-            Start-BitsTransfer -Source ($softwareRepoURL + "/catalogs/" + $catalog + ".xml") -Destination ($gibbonInstallDir + "\GibbonInstalls\Catalogs\" + $catalog + ".xml") -TransferType Download -ErrorAction Stop
+            Start-BitsTransfer -Source ($softwareRepoURL + "/catalogs/" + $catalog + ".xml") -Destination ($gibbunInstallDir + "\GibbunInstalls\Catalogs\" + $catalog + ".xml") -TransferType Download -ErrorAction Stop
             Write-Verbose "Using manifest $catalog"
             }
         Catch
@@ -367,11 +367,11 @@ If (-Not(($windowsUpdatesOnly)))
     #create variable $softwareVersionsArray
     [array]$softwareVersionsArray
     
-    #go through each catalog and determine which software version to install **NOTE: Gibbon will install the first version of a software it sees (based on ordering of catalogs)**
+    #go through each catalog and determine which software version to install **NOTE: Gibbun will install the first version of a software it sees (based on ordering of catalogs)**
     foreach ($catalog in $catalogs)
         {
         #load each catalog as XML file
-        [xml]$catalogXML = (Get-Content ($gibbonInstallDir + "\GibbonInstalls\Catalogs\" + $catalog + ".xml"))
+        [xml]$catalogXML = (Get-Content ($gibbunInstallDir + "\GibbunInstalls\Catalogs\" + $catalog + ".xml"))
         
         #obtain software from currently loaded catalog and add it to $softwareVersionsArray variable for safe-keeping
         $softwareVersionsArray = ($softwareVersionsArray + ($catalogXML.catalog.software))
@@ -389,7 +389,7 @@ If (-Not(($windowsUpdatesOnly)))
 ###########################################################################################
 
 #import PowerShell Windows Update modules
-IPMO (Join-Path $gibbonInstallDir -ChildPath Resources\WindowsUpdatePowerShellModule\PSWindowsUpdate)
+IPMO (Join-Path $gibbunInstallDir -ChildPath Resources\WindowsUpdatePowerShellModule\PSWindowsUpdate)
 
 #Check if $installWindowsUpdates is true in ManagedInstalls.XML. Skip Windows Updates if False.
 If ($installWindowsUpdates -or $windowsUpdatesOnly)
@@ -413,7 +413,7 @@ If ($installWindowsUpdates -or $windowsUpdatesOnly)
             #Update LastWindowsUpdateCheck in ManagedInstalls.XML
             $managedInstallsXML.SelectSingleNode("//LastWindowsUpdateCheck").InnerText = (Get-Date)
             #save changes to ManagedInstalls.XML
-            $managedInstallsXML.Save($gibbonInstallDir + "\ManagedInstalls.xml")
+            $managedInstallsXML.Save($gibbunInstallDir + "\ManagedInstalls.xml")
             }
         }
     }
@@ -430,18 +430,18 @@ Write-Verbose "Finishing..."
 
 #check if postflight script exists and call it if it does exist. Exit if postflight script encounters an error.
 Write-Verbose "Checking if postflight script exists"
-If (Test-Path (Join-Path $gibbonInstallDir -ChildPath postflight.ps1))
+If (Test-Path (Join-Path $gibbunInstallDir -ChildPath postflight.ps1))
     {
     Write-Verbose "Postflight script exists";
     Write-Verbose "Running postflight script";
-    Invoke-Expression (Join-Path $gibbonInstallDir -ChildPath postflight.ps1);
+    Invoke-Expression (Join-Path $gibbunInstallDir -ChildPath postflight.ps1);
         If ($LastExitCode > 0)
         {
         Write-Warning "Postflight script encountered an error"
         Exit
         }
     }
-Else {Write-Verbose "Postflight script does not exist. If this is in error, please ensure script is in the Gibbon install directory"}
+Else {Write-Verbose "Postflight script does not exist. If this is in error, please ensure script is in the Gibbun install directory"}
 
 ##############################################################################################
 ### END OF POSTFLIGHT SCRIPT #################################################################
