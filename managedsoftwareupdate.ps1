@@ -446,26 +446,169 @@ If ((-Not(($windowsUpdatesOnly))) -and ($haveManifest))
         #obtain software from currently loaded catalog and add it to $softwareVersionsArray variable for safe-keeping
         $softwareVersionsArray = ($softwareVersionsArray + ($catalogXML.catalog.software))
         }
-    #pipe list of software to be installed into $softwareVersionsArray
-    $softwareToBeInstalled = $softwareVersionsArray|Group-Object name|ForEach-Object {$_.Group[0]}
-    
-    #display software that will be installed
-    Write-Host "The following software will be installed:"
-    $softwareToBeInstalled
 
+    #pipe list of software to be installed into $softwareVersionsArray
+    $softwareVersions = $softwareVersionsArray|Group-Object name|ForEach-Object {$_.Group[0]}
+    
+    #create $finalSoftwareVariable to avoid fixed size error when removing objects from array    
+    [system.collections.arraylist]$finalSoftwareVersions = $softwareVersions
+     
+    #determine packages in catalog that intersect with manifest. remove those that do not intersect   
+    ForEach ($package in $softwareVersions)
+        {       
+        If ($gibbunSoftware -notcontains $package.name)
+            {
+            $finalSoftwareVersions.Remove($package)
+            }
+        }
     }
 
 ###################################################################################################################################################################################
 ### END OF OBTAIN SOFTWARE VERSIONS ###############################################################################################################################################
 ###################################################################################################################################################################################
 
-###########################################################################################################################################################################################################################
-### DOWNLOAD GIBBUN SOFTWARE INSTALLS #####################################################################################################################################################################################################
-###########################################################################################################################################################################################################################
+###########################################################################################################
+### OBTAIN REQUIRED SOFTWARE VERSIONS #####################################################################
+###########################################################################################################
 
 If ((-Not(($windowsUpdatesOnly))) -and ($haveManifest))
     {
-    foreach ($package in $softwareToBeInstalled)
+    #creates empty array $requiredInstalls and pass it to a collection
+    $requiredInstalls = {$Null}.Invoke()
+
+    #determine required installs
+    ForEach ($package in $finalSoftwareVersions)
+        {       
+        If ($package.requires.name -ne $Null)
+            {
+            $requiredInstalls.Add($package)
+            }
+        }
+    
+    #if $requiredInstalls is not empty, display required install software
+    If ($requiredInstalls -ne $null)
+        {
+        foreach ($package in $requiredInstalls)
+            {
+            If ($package.name -ne $Null)
+                {
+                Write-Verbose "$package.name 'requires' $package.requires.name 'to be installed'"
+                }
+            }
+        }
+
+    #pipe list of software to be installed into $requiredSoftwareVersionsArray
+    $requiredSoftwareVersions = $SoftwareVersionsArray|Group-Object name|ForEach-Object {$_.Group[0]}
+    
+    #create $finalRequiredSoftwareVariable to avoid fixed size error when removing objects from array    
+    [system.collections.arraylist]$finalRequiredSoftwareVersions = $requiredSoftwareVersions
+     
+    #determine packages in catalog that intersect with required installs. remove those that do not intersect   
+    ForEach ($package in $requiredSoftwareVersions)
+        {       
+        If (-Not($requiredInstalls.requires.name.Contains($package.name)))
+            {
+            $finalRequiredSoftwareVersions.Remove($package)
+            }
+        }
+    }
+
+###########################################################################################################
+### END OF OBTAIN REQUIRED SOFTWARE VERSIONS ##############################################################
+###########################################################################################################
+
+###########################################################################################################
+### DETERMINE DOWNLOADS ###################################################################################
+###########################################################################################################
+
+If ((-Not(($windowsUpdatesOnly))) -and ($haveManifest))
+    {
+    #create $packageDownloads to avoid fixed size error when removing objects from array    
+    [system.collections.arraylist]$packageDownloads = $finalSoftwareVersions
+
+    #determine packages in client manifest that intersect with required installs. remove the duplicates to prevent duplicate downloads  
+    ForEach ($package in $finalRequiredSoftwareVersions)
+        {       
+        If (-Not($packageDownloads.name.requires.Contains($package.requires.name)))
+            {
+            $softwareDownloads.Add($package)
+            }
+        }
+    }
+
+#####################################################################################################################
+### END OF DETERMINE DOWNLOADS ######################################################################################
+#####################################################################################################################
+
+############################################################################################################################
+### DETERMINE PACKAGES MISSING A CATALOG ###################################################################################
+############################################################################################################################
+
+If ((-Not(($windowsUpdatesOnly))) -and ($haveManifest))
+    {
+    #creates empty array $softwareMissingCatalog and pass it to a collection
+    $softwareMissingCatalog = {$Null}.Invoke()
+
+    #determine packages in manifest that do not have a matching catalog   
+    ForEach ($software in $gibbunSoftware)
+        {       
+        If (-Not($softwareVersions.name.Contains($software)))
+            {
+            $softwareMissingCatalog.Add($software)
+            }
+        }
+
+    #determine required installs that do not have a matching catalog   
+    ForEach ($package in $requiredInstalls)
+        {       
+        If (-Not($requiredSoftwareVersions.name.Contains($package.requires.name)))
+            {
+            $softwareMissingCatalog.Add($package.requires.name)
+            }
+        }
+    }
+
+############################################################################################################################
+### END OF DETERMINE PACKAGES MISSING A CATALOG ############################################################################
+############################################################################################################################
+
+##########################################################################################
+### DISPLAY PACKAGES MISSING A CATALOG AND THOSE TO BE INSTALLED #########################
+##########################################################################################
+
+If ((-Not(($windowsUpdatesOnly))) -and ($haveManifest))
+    { 
+    #if $softwareMissingCatalog is not empty, display software that is missing a catalog
+    If ($softwareMissingCatalog -ne $null)
+        {
+        Write-Warning "The following software is missing a catalog:"
+        $softwareMissingCatalog
+        #line break for easier reading
+        Write-Host `n
+        }
+
+    If ($packageDownloads -ne $null)
+        {
+        Write-Host "The following packages will be downloaded and installed:"
+        $packageDownloads
+        "------------------------------------------------------------------------------------------------------------------------"
+        #line break for easier reading
+        Write-Host `n
+        }
+    }
+
+##########################################################################################
+### END OF DISPLAY PACKAGES MISSING A CATALOG AND THOSE TO BE INSTALLED ##################
+##########################################################################################
+
+###########################################################################################################################################################################################################################################
+### DOWNLOAD GIBBUN SOFTWARE INSTALLS #####################################################################################################################################################################################################
+###########################################################################################################################################################################################################################################
+
+If ((-Not(($windowsUpdatesOnly))) -and ($haveManifest))
+    {
+    Write-Host "Begin Downloading packages"
+    foreach ($package in $packageDownloads)
         {      
         $softwareName = $package.name
         $softwareVersion = $package.version
@@ -491,9 +634,9 @@ If ((-Not(($windowsUpdatesOnly))) -and ($haveManifest))
         }
     }
 
-###########################################################################################################################################################################################################################
+###########################################################################################################################################################################################################################################
 ### END OF DOWNLOAD GIBBUN SOFTWARE INSTALLS ##############################################################################################################################################################################################
-###########################################################################################################################################################################################################################
+###########################################################################################################################################################################################################################################
 
 ###########################################################################################################################
 ### WINDOWS UPDATES #######################################################################################################
