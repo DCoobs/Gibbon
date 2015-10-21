@@ -33,6 +33,7 @@ Param(
 ########################################################### 
 
 $networkUp = (Test-NetConnection -InformationLevel Quiet)
+$userCheck = 
 
 If ($networkUp)
     {
@@ -46,7 +47,7 @@ Else
 
 ###########################################################
 ###   END OF NETWORK CONNECTION TEST   ####################
-########################################################### 
+###########################################################
 
 ###########################################################
 ###   CONSTANT VARIABLES   ################################
@@ -64,6 +65,45 @@ $gibbunManagedInstallsXMLPath = (Join-Path $gibbunInstallDir ManagedInstalls.xml
 ###########################################################
 ###   END OF CONSTANT VARIABLES   #########################
 ###########################################################
+
+##########################################################################################################################
+###   LOGGED ON USER TEST   ##############################################################################################
+########################################################################################################################## 
+#create boolean variable $userLoggedOn. Error on side of caution by setting this to true initially.
+[boolean]$userLoggedon = $True
+
+#check number of local users currently logged on using PSLoggedOn.exe
+#(http://blogs.technet.com/b/heyscriptingguy/archive/2011/03/17/use-powershell-to-detect-if-a-workstation-is-in-use.aspx)
+[object[]]$userCheck = $gibbunInstallDir + "\Resources\PSTools\PsLoggedon.exe -x -l \\localhost" |
+        Where-Object {$_ -match '^\s{2,}((?<domain>\w+)\\(?<user>\S+))|(?<user>\S+)'} |
+        Select-Object @{
+            Name='Computer'
+            Expression={$Computer}
+        },
+        @{
+            Name='Domain'
+            Expression={$matches.Domain}
+        },
+        @{
+            Name='User'
+            Expression={$Matches.User}
+        }
+
+#if there are any local logged on users, write message and set $userLoggedOn variable
+If ($userCheck.count -ge 1)
+    {
+    Write-Host "There are currently users logged on to this machine" -ForegroundColor 'Red'
+    $userLoggedOn = $True
+    }
+Else
+    {
+    Write-Host "There are currently NO users logged on to this machine" -ForegroundColor 'Green'
+    $userLoggedOn = $False
+    }
+
+##########################################################################################################################
+###   END OF LOGGED ON USER TEST   #######################################################################################
+########################################################### ##############################################################
 
 ##################################################################################################################################
 ### RUNNING AS ADMIN CHECK #######################################################################################################
@@ -105,7 +145,7 @@ Try
     }
 Catch
     {
-    Write-Warning "ManagedInstall.XML is missing ClientIdentifier..."
+    Write-Warning "Encountered an error loading ClientIdentifier from ManagedInstall.XML..."
     }
 
 Try
@@ -114,7 +154,7 @@ Try
     }
 Catch
     {
-    Write-Warning "ManagedInstall.XML is missing installWindowsUpdates..."
+    Write-Warning "Encountered an error loading installWindowsUpdates from ManagedInstall.XML..."
     }
 
 Try
@@ -123,7 +163,7 @@ Try
     }
 Catch
     {
-    Write-Warning "ManagedInstall.XML is missing WindowsUpdatesOnly..."
+    Write-Warning "Encountered an error loading WindowsUpdatesOnly from ManagedInstall.XML..."
     }
 
 Try
@@ -132,7 +172,7 @@ Try
     }
 Catch
     {
-    Write-Warning "ManagedInstall.XML is missing DaysBetweenWindowsUpdates..."
+    Write-Warning "Encountered an error loading DaysBetweenWindowsUpdates from ManagedInstall.XML..."
     }
 
 Try
@@ -141,7 +181,7 @@ Try
     }
 Catch
     {
-    Write-Warning "ManagedInstall.XML is missing LastWindowsUpdateCheck..."
+    Write-Warning "Encountered an error loading LastWindowsUpdateCheck from ManagedInstall.XML..."
     }
 
 Try
@@ -150,7 +190,7 @@ Try
     }
 Catch
     {
-    Write-Warning "ManagedInstall.XML is missing LogFile..."
+    Write-Warning "Encountered an error loading LogFile from ManagedInstall.XML..."
     }
 
 Try
@@ -159,7 +199,7 @@ Try
     }
 Catch
     {
-    Write-Warning "ManagedInstall.XML is missing LoggingEnabled..."
+    Write-Warning "Encountered an error loading LoggingEnabled from ManagedInstall.XML..."
     }
 
 Try
@@ -168,7 +208,7 @@ Try
     }
 Catch
     {
-    Write-Warning "ManagedInstall.XML is missing SoftwareRepoURL..."
+    Write-Warning "Encountered an error loading SoftwareRepoURL from ManagedInstall.XML..."
     }
 
 #convert boolean values in XML from strings to actual boolean
@@ -723,6 +763,8 @@ If ((-Not(($windowsUpdatesOnly))) -and ($haveManifest))
     If ($softwareMissingCatalog -ne $null)
         {
         Write-Warning "The following software is missing a catalog:"
+        #line break for easier reading
+        Write-Host `n
         ForEach ($package in $packageDownloads)
             {
             Write-Warning $package.name
@@ -785,6 +827,32 @@ If ((-Not(($windowsUpdatesOnly))) -and ($haveManifest))
 
 ###########################################################################################################################################################################################################################################
 ### END OF DOWNLOAD GIBBUN SOFTWARE INSTALLS ##############################################################################################################################################################################################
+###########################################################################################################################################################################################################################################
+
+###########################################################################################################################################################################################################################################
+### INSTALL GIBBUN SOFTWARE PACKAGES ######################################################################################################################################################################################################
+###########################################################################################################################################################################################################################################
+
+If ((-Not(($windowsUpdatesOnly))) -and ($haveManifest))
+    {
+    
+    }
+
+###########################################################################################################################################################################################################################################
+### END OF INSTALL GIBBUN SOFTWARE PACKAGES ###############################################################################################################################################################################################
+###########################################################################################################################################################################################################################################
+
+###########################################################################################################################################################################################################################################
+### CLEAR DOWNLOADS STAGING FOLDER ########################################################################################################################################################################################################
+###########################################################################################################################################################################################################################################
+
+If ((-Not(($windowsUpdatesOnly))) -and ($haveManifest))
+    {
+    Get-ChildItem (Join-Path $gibbunInstallDir GibbunInstalls\Downloads\* ) | Remove-Item -Recurse -Force
+    }
+
+###########################################################################################################################################################################################################################################
+### END OF CLEAR DOWNLOADS STAGING FOLDER #################################################################################################################################################################################################
 ###########################################################################################################################################################################################################################################
 
 ###########################################################################################################################
